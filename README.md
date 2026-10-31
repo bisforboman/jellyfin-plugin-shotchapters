@@ -72,7 +72,8 @@ To install a build by hand, unzip `shot-chapters.zip` into a folder `Shot Chapte
 
 1. Set the version in `build.yaml` (`X.Y.Z.0`, with its `changelog`) and in the csproj (`<Version>X.Y.Z</Version>`),
    in a PR.
-2. Once that has merged, push a tag `vX.Y.Z` on main.
+2. Once that has merged, push a tag `vX.Y.Z` on main, or run the *Release* workflow on main by hand (Actions → Release
+   → Run workflow): that releases `build.yaml`'s version and creates its tag.
 
 `release.yml` checks that the versions agree, tests and packages the plugin, and publishes a GitHub release with
 `shot-chapters_X.Y.Z.0.zip` and `manifest.json`. The manifest lists every version released so far
