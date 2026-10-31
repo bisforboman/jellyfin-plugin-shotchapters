@@ -1,0 +1,21 @@
+---
+name: "Shot Chapters"
+guid: "a021d41c-4b7d-41e1-a024-faac0116f5b6"
+version: "0.1.0.0"
+targetAbi: "12.0.0.0"
+framework: "net10.0"
+overview: "Chapters from shot cuts for videos without chapters of their own"
+description: >
+  Adds chapters at shot cuts, found with ShotDetector (a C# port of PySceneDetect), to videos that have no chapters
+  or only Jellyfin's evenly spaced ones, so chapter images and chapter skipping work on rips and home videos.
+  A file's own chapters are never replaced. Runs as the scheduled task "Generate chapters from shots", through
+  Jellyfin's own ffmpeg.
+category: "Metadata"
+owner: "bisforboman"
+artifacts:
+- "Jellyfin.Plugin.ShotChapters.dll"
+- "ShotDetector.dll"
+- "FrameReader.dll"
+- "FFmpeg.AutoGen.dll"
+changelog: >
+  First version: chapters from shot cuts.

@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: true
+      # BtbN's FFmpeg 8.1 (jellyfin-ffmpeg's version), pinned: a month-end release, which BtbN keeps.
+      FFMPEG_RELEASE: autobuild-2026-09-30-13-08
+      FFMPEG_NAME: ffmpeg-n8.1.3-9-g29e619e767-linux64-gpl-8.1
+      FFMPEG_SHA256: 97ce978979194b5cf7e06a5e68020dbdaa7a4f3294c5452b6a1bc347100dbb79
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/ffmpeg
+          key: ffmpeg-${{ env.FFMPEG_NAME }}
+      - name: FFmpeg 8.1
+        run: |
+          if [ ! -x ~/ffmpeg/ffmpeg ]; then
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o ffmpeg.tar.xz \
+              "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$FFMPEG_NAME.tar.xz"
+            echo "$FFMPEG_SHA256  ffmpeg.tar.xz" | sha256sum -c -
+            tar xf ffmpeg.tar.xz
+            mkdir -p ~/ffmpeg && mv "$FFMPEG_NAME"/bin/ffmpeg "$FFMPEG_NAME"/bin/ffprobe ~/ffmpeg/
+          fi
+          echo "SHOTCHAPTERS_FFMPEG=$HOME/ffmpeg" >> "$GITHUB_ENV"
+          ~/ffmpeg/ffmpeg -version | head -1
+      - name: Build
+        run: dotnet build Jellyfin.Plugin.ShotChapters.slnx -c Release
+      - name: Test
+        run: dotnet test --solution Jellyfin.Plugin.ShotChapters.slnx -c Release --no-build
+      - name: Package
+        run: |
+          dotnet publish src/Jellyfin.Plugin.ShotChapters -c Release -o artifacts/publish
+          python3 tools/package.py artifacts/publish artifacts/shot-chapters.zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: shot-chapters
+          path: artifacts/shot-chapters.zip
