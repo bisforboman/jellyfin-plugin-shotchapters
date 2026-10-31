@@ -8,8 +8,8 @@ overview: "Chapters from shot cuts for videos without chapters of their own"
 description: >
   Adds chapters at shot cuts, found with ShotDetector (a C# port of PySceneDetect), to videos that have no chapters
   or only Jellyfin's evenly spaced ones, so chapter images and chapter skipping work on rips and home videos.
-  A file's own chapters are never replaced. Runs as the scheduled task "Generate chapters from shots", through
-  Jellyfin's own ffmpeg.
+  A file's own chapters are never replaced. Also marks black stretches (fades to black, black gaps) as media
+  segments. Runs as the scheduled task "Generate chapters from shots", through Jellyfin's own ffmpeg.
 category: "Metadata"
 owner: "bisforboman"
 artifacts:
@@ -18,4 +18,4 @@ artifacts:
 - "FrameReader.dll"
 - "FFmpeg.AutoGen.dll"
 changelog: >
-  First version: chapters from shot cuts.
+  First version: chapters from shot cuts, black stretches as media segments.

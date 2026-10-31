@@ -7,6 +7,7 @@ using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.Tasks;
@@ -16,9 +17,9 @@ namespace Jellyfin.Plugin.ShotChapters;
 
 /// <summary>
 /// The scheduled task "Generate chapters from shots": chapters at shot cuts for every video file that has none, or only
-/// Jellyfin's dummy chapters. A video's own chapters are never touched. Each video is scanned once per file version and
-/// settings; when a metadata refresh puts Jellyfin's chapters back, the next run saves the recorded ones again without
-/// a new scan.
+/// Jellyfin's dummy chapters, and (when on) its black stretches for <see cref="BlackSegmentProvider"/>. A video's own
+/// chapters are never touched. Each video is scanned once per file version and settings; when a metadata refresh puts
+/// Jellyfin's chapters back, the next run saves the recorded ones again without a new scan.
 /// </summary>
 public sealed partial class GenerateChaptersTask : IScheduledTask
 {
@@ -27,6 +28,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
     readonly IMediaEncoder _mediaEncoder;
     readonly IServerConfigurationManager _serverConfiguration;
     readonly ILocalizationManager _localization;
+    readonly IMediaSegmentManager _segmentManager;
     readonly ILogger<GenerateChaptersTask> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="GenerateChaptersTask"/> class.</summary>
@@ -35,6 +37,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
     /// <param name="mediaEncoder">Where jellyfin-ffmpeg is.</param>
     /// <param name="serverConfiguration">The server's settings (its dummy chapter length).</param>
     /// <param name="localization">Chapter names in the server's language.</param>
+    /// <param name="segmentManager">Stores a scanned video's segments at once, rather than at the next media segment scan.</param>
     /// <param name="logger">The log.</param>
     public GenerateChaptersTask(
         ILibraryManager libraryManager,
@@ -42,6 +45,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         IMediaEncoder mediaEncoder,
         IServerConfigurationManager serverConfiguration,
         ILocalizationManager localization,
+        IMediaSegmentManager segmentManager,
         ILogger<GenerateChaptersTask> logger)
     {
         _libraryManager = libraryManager;
@@ -49,6 +53,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         _mediaEncoder = mediaEncoder;
         _serverConfiguration = serverConfiguration;
         _localization = localization;
+        _segmentManager = segmentManager;
         _logger = logger;
     }
 
@@ -59,7 +64,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
     public string Key => "ShotChaptersGenerate";
 
     /// <inheritdoc />
-    public string Description => "Adds chapters at shot cuts to videos without chapters of their own.";
+    public string Description => "Adds chapters at shot cuts to videos without chapters of their own, and marks black stretches as media segments.";
 
     /// <inheritdoc />
     public string Category => "Library";
@@ -77,7 +82,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         ArgumentNullException.ThrowIfNull(progress);
         var plugin = Plugin.Instance ?? throw new InvalidOperationException("The plugin isn't loaded.");
         var config = plugin.Configuration;
-        var state = ChapterState.Load(Path.Combine(plugin.DataFolderPath, "chapters.json"));
+        var state = ChapterState.Shared;
         string? ffmpegDirectory = string.IsNullOrEmpty(_mediaEncoder.EncoderPath) ? null : Path.GetDirectoryName(_mediaEncoder.EncoderPath);
 
         var videos = _libraryManager.GetItemList(new InternalItemsQuery
@@ -90,7 +95,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
                 DtoOptions = new DtoOptions(false) { EnableImages = false },
             })
             .OfType<Video>()
-            .Where(v => !v.IsShortcut && v.VideoType == VideoType.VideoFile && !string.IsNullOrEmpty(v.Path))
+            .Where(IsScannable)
             .ToList();
 
         for (int i = 0; i < videos.Count; i++)
@@ -102,7 +107,13 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         }
     }
 
-    /// <summary>Adds chapters to one video when it needs them.</summary>
+    /// <summary>Whether the plugin handles an item: a video file (not a shortcut, disc folder or ISO) with a path.</summary>
+    /// <param name="item">The item.</param>
+    /// <returns>Whether it does.</returns>
+    internal static bool IsScannable(BaseItem item) =>
+        item is Video { IsShortcut: false, VideoType: VideoType.VideoFile } v && !string.IsNullOrEmpty(v.Path);
+
+    /// <summary>Adds chapters to one video when it needs them, and records its black stretches.</summary>
     /// <returns>Whether its record changed.</returns>
     async Task<bool> ProcessAsync(Video video, PluginConfiguration config, ChapterState state, string? ffmpegDirectory, CancellationToken cancellationToken)
     {
@@ -111,7 +122,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         var kind = ExistingChapters.Classify(current, _serverConfiguration.Configuration.DummyChapterDuration, record?.Chapters);
         long fileTicks = video.DateModified.Ticks;
         string settings = config.Key;
-        switch (ChapterDecision.Decide(kind, record, fileTicks, settings))
+        switch (ChapterDecision.Decide(kind, record, fileTicks, settings, config.MarkBlackSegments))
         {
             case ChapterAction.Skip:
                 return false;
@@ -127,17 +138,24 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         try
         {
             int? downscale = config.Downscale > 0 ? config.Downscale : null;
-            var (cuts, scannedSeconds) = await ShotScanner.ScanAsync(video.Path, ffmpegDirectory, downscale, config.UseSeveralCores, cancellationToken)
+            (double, double)? black = config.MarkBlackSegments ? (PluginConfiguration.BlackThreshold, config.BlackMinSeconds) : null;
+            var scan = await ShotScanner.ScanAsync(video.Path, ffmpegDirectory, downscale, config.UseSeveralCores, black, cancellationToken)
                 .ConfigureAwait(false);
-            double duration = video.RunTimeTicks is > 0 and long ticks ? TimeSpan.FromTicks(ticks).TotalSeconds : scannedSeconds;
-            double interval = config.IntervalMinutes * 60.0;
-            var starts = ChapterPicker.Pick(cuts, duration, interval, Math.Min(60, interval / 2))
-                .Select(s => (long)Math.Round(s * TimeSpan.TicksPerSecond))
-                .ToList();
-            // As stored: Jellyfin drops chapters past the runtime, and the record must match what it keeps.
-            starts = starts.Count <= 1 ? [] : Save(video, starts);
-            LogScanned(video.Name, video.Path, cuts.Count, starts.Count);
-            updated = new ChapterRecord { FileModifiedTicks = fileTicks, Settings = settings, Chapters = starts };
+            double duration = video.RunTimeTicks is > 0 and long ticks ? TimeSpan.FromTicks(ticks).TotalSeconds : scan.DurationSeconds;
+            List<long> starts = [];
+            if (kind != ChapterKind.Other)
+            {
+                double interval = config.IntervalMinutes * 60.0;
+                starts = ChapterPicker.Pick(scan.Cuts, duration, interval, Math.Min(60, interval / 2))
+                    .Select(Ticks)
+                    .ToList();
+                // As stored: Jellyfin drops chapters past the runtime, and the record must match what it keeps.
+                starts = starts.Count <= 1 ? [] : Save(video, starts);
+            }
+
+            var spans = scan.Black.Select(b => new BlackSpan(Ticks(b.Start), Ticks(b.End))).ToList();
+            LogScanned(video.Name, video.Path, scan.Cuts.Count, starts.Count, spans.Count);
+            updated = new ChapterRecord { FileModifiedTicks = fileTicks, Settings = settings, Chapters = starts, BlackSpans = spans };
         }
 #pragma warning disable CA1031 // One file that won't decode mustn't stop the task; it's recorded and logged.
         catch (Exception e) when (e is not OperationCanceledException)
@@ -148,8 +166,26 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         }
 
         state.Set(video.Id, updated);
+        if (config.MarkBlackSegments && updated.Error is null && _segmentManager.IsTypeSupported(video))
+        {
+            try
+            {
+                // As Jellyfin's media segment scan would (without overwriting other providers' segments).
+                await _segmentManager.RunSegmentPluginProviders(video, _libraryManager.GetLibraryOptions(video), false, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+#pragma warning disable CA1031 // The segments then come at Jellyfin's next media segment scan.
+            catch (Exception e) when (e is not OperationCanceledException)
+#pragma warning restore CA1031
+            {
+                LogSegmentsFailed(e, video.Name);
+            }
+        }
+
         return true;
     }
+
+    static long Ticks(double seconds) => (long)Math.Round(seconds * TimeSpan.TicksPerSecond);
 
     /// <summary>Saves chapters at these starts.</summary>
     /// <returns>The starts Jellyfin stored.</returns>
@@ -167,8 +203,11 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         return _chapterManager.GetChapters(video.Id).Select(c => c.StartPositionTicks).ToList();
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Shot chapters for {Name} ({Path}): {Cuts} cuts, {Chapters} chapters")]
-    partial void LogScanned(string name, string path, int cuts, int chapters);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Shot chapters for {Name} ({Path}): {Cuts} cuts, {Chapters} chapters, {Black} black stretches")]
+    partial void LogScanned(string name, string path, int cuts, int chapters, int black);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Storing the media segments of {Name} failed; Jellyfin's next media segment scan stores them")]
+    partial void LogSegmentsFailed(Exception exception, string name);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Shot chapters failed for {Name} ({Path})")]
     partial void LogFailed(Exception exception, string name, string path);

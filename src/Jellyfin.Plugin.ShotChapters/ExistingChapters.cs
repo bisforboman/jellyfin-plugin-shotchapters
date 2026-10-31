@@ -54,7 +54,10 @@ internal enum ChapterAction
     /// <summary>Save the recorded chapters again: a metadata refresh replaced them with Jellyfin's.</summary>
     Restore,
 
-    /// <summary>Scan it: never scanned, or the file or the settings changed since.</summary>
+    /// <summary>
+    /// Scan it: never scanned, or the file or the settings changed since. Its chapters are saved only when it has none of
+    /// its own (<see cref="ChapterKind.Other"/>); its black stretches are recorded either way.
+    /// </summary>
     Scan,
 }
 
@@ -66,14 +69,15 @@ internal static class ChapterDecision
     /// <param name="record">The plugin's record of it, or null.</param>
     /// <param name="fileModifiedTicks">The file's modification time now.</param>
     /// <param name="settings">The settings now.</param>
+    /// <param name="segments">Whether black segments are on: then a video with its own chapters is scanned too, for them.</param>
     /// <returns>The action.</returns>
-    public static ChapterAction Decide(ChapterKind kind, ChapterRecord? record, long fileModifiedTicks, string settings)
+    public static ChapterAction Decide(ChapterKind kind, ChapterRecord? record, long fileModifiedTicks, string settings, bool segments)
     {
-        if (kind == ChapterKind.Other)
+        if (kind == ChapterKind.Other && !segments)
             return ChapterAction.Skip;
         if (record is null || record.FileModifiedTicks != fileModifiedTicks || record.Settings != settings)
             return ChapterAction.Scan;
-        if (kind == ChapterKind.Ours || record.Chapters.Count == 0)
+        if (kind is ChapterKind.Other or ChapterKind.Ours || record.Chapters.Count == 0)
             return ChapterAction.Skip;
         return ChapterAction.Restore;
     }

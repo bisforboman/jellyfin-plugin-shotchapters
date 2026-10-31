@@ -9,11 +9,16 @@ docs/decisions/2026-10-31-jellyfin-plugin.md; the scoping note is docs/ideas/jel
 
 - `src/Jellyfin.Plugin.ShotChapters`:
   - `Plugin` and `Configuration/` (the settings and the dashboard page).
-  - `GenerateChaptersTask`: the scheduled task, the only part that talks to Jellyfin.
+  - `GenerateChaptersTask`: the scheduled task. It scans, saves chapters, records black stretches and runs the
+    segment providers for the scanned item.
+  - `BlackSegmentProvider` (registered in `PluginServiceRegistrator`): reports the recorded stretches as media
+    segments. It never scans.
   - Pure logic, tested without Jellyfin:
     - `ChapterPicker`: chapter starts from the cuts.
     - `ExistingChapters`/`ChapterDecision`: whose chapters a video has, and what to do with it.
-    - `ChapterState`: the records, as JSON.
+    - `BlackSpans`: black stretches from the per-frame `average_rgb`.
+    - `ChapterState`: the records, as JSON. `Shared` is the instance the task and the provider share; it is
+      thread-safe.
   - `ShotScanner`: the ShotDetector call.
 - `tests/`: xunit v3 on Microsoft.Testing.Platform (`dotnet test --solution ...`). `ShotScannerTests` needs
   `SHOTCHAPTERS_FFMPEG`, a folder holding FFmpeg 8's ffmpeg and ffprobe. CI downloads a pinned BtbN build.
@@ -32,12 +37,19 @@ docs/decisions/2026-10-31-jellyfin-plugin.md; the scoping note is docs/ideas/jel
   runtime, so the task records what `GetChapters` returns after saving.
 - **FFmpeg version:** ShotDetector needs a recent FFmpeg through the executable: 6.1 lacks `in_chroma_loc`. 8.1 works,
   and that is jellyfin-ffmpeg's version.
+- **Segment ids:** `MediaSegmentDto.Id` is stored as the row's key, so each segment needs its own (`Guid.NewGuid()`).
+  `RunSegmentPluginProviders` compares start, end and type, and leaves unchanged segments alone.
+  `CleanupExtractedData` (12.x) is called when an item's file changes; the plugin forgets the item there.
+- **Black frames:** they come from ThresholdDetector's `average_rgb`, so that detector runs alongside the adaptive one,
+  and its fade cuts are chapter candidates too.
 - **No frame skip:** `DetectionOptions.FrameSkip` can't be combined with `CollectStats`, and the cut strengths
   (`content_val`) come from the stats.
 
 ## Working here
 
 - **Branches:** work on a branch and open a PR; don't push to main.
+- **Merging:** merge your own PR yourself once CI is green (the owner's choice, 2026-10-31). Auto-merge is off in the
+  repository's settings.
 - **Before pushing:** run `dotnet test` with SHOTCHAPTERS_FFMPEG set, then package once to check the zip.
 - **Pinned actions:** actions are pinned by commit SHA, with the tag in a comment.
 - **Commit messages:** say what and why. Keep commits small.

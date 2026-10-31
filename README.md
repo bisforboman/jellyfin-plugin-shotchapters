@@ -1,7 +1,8 @@
 # Shot Chapters for Jellyfin
 
 A [Jellyfin](https://jellyfin.org) plugin that adds chapters at shot cuts to videos that have no chapters of their own,
-such as most rips and home videos. With those chapters, Jellyfin can show chapter images and skip by chapter.
+such as most rips and home videos. With those chapters, Jellyfin can show chapter images and skip by chapter. It also
+marks black stretches (fades to black, black gaps) as media segments.
 
 The cuts come from [ShotDetector](https://github.com/bisforboman/shotdetector), a C# port of PySceneDetect. Its adaptive
 detector is PySceneDetect's default.
@@ -21,6 +22,12 @@ detector is PySceneDetect's default.
 - **Each file is scanned once.** A file is scanned again only when it changes or the settings do. When a metadata
   refresh puts Jellyfin's own chapters back, the next run restores the plugin's chapters without scanning again.
   The plugin keeps its records in `chapters.json` in its data folder.
+- **Black stretches:** with *Mark black stretches as media segments* on (the default), the same scan also finds runs of
+  frames whose mean brightness is under 12 of 255, PySceneDetect's fade threshold. Runs of at least 1 s by default
+  are kept, in every video, including those with chapters of their own. The plugin reports them as media segments
+  of the type you choose. The default type is *Unknown*, on which clients take no action unless told to; their skip
+  settings are per type. They are stored as soon as a file is scanned, and Jellyfin's *Media Segment Scan* keeps
+  them. Libraries can turn the provider off under their media segment settings, as with any other provider.
 - **Decoding:** files are decoded by Jellyfin's own ffmpeg (jellyfin-ffmpeg 8; `ffprobe` must be next to it). Nothing
   native ships with the plugin.
 
@@ -32,6 +39,11 @@ Dashboard → Plugins → Shot Chapters:
 - **Downscale factor:** 0 is automatic, as in PySceneDetect. A larger value scans faster but is coarser.
 - **Scan each file on several cores:** off by default. When on, ShotDetector scans long files in chunks on several
   cores (files of two minutes or more, on 4 CPUs or more).
+- **Mark black stretches as media segments:** on by default.
+- **Shortest black stretch:** in seconds, default 1.
+- **Segment type:** the type the black stretches get. The default is Unknown.
+
+Changing a setting other than the segment type makes the next run scan every file again.
 
 Scans need every frame (ShotDetector can't skip frames while it collects the per-frame values used to rank cuts).
 
