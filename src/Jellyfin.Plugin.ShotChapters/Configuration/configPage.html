@@ -5,12 +5,13 @@
     <title>Shot Chapters</title>
 </head>
 <body>
-    <div id="ShotChaptersConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+    <div id="ShotChaptersConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
         <div data-role="content">
             <div class="content-primary">
                 <form id="ShotChaptersConfigForm">
-                    <p>Chapters are made by the scheduled task "Generate chapters from shots", for videos that have no chapters
-                        or only Jellyfin's evenly spaced ones. A file's own chapters are never replaced.</p>
+                    <p>The scheduled task "Generate chapters from shots" makes chapters for videos that have no chapters or
+                        only Jellyfin's evenly spaced ones (a file's own chapters are never replaced), and finds black
+                        stretches, which it reports as media segments.</p>
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="ChapterIntervalMinutes">Minutes between chapters</label>
                         <input id="ChapterIntervalMinutes" name="ChapterIntervalMinutes" type="number" is="emby-input" min="1" />
@@ -27,6 +28,29 @@
                             <span>Scan each file on several cores</span>
                         </label>
                         <div class="fieldDescription checkboxFieldDescription">Faster, but busier while it runs.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="MarkBlackSegments" name="MarkBlackSegments" type="checkbox" is="emby-checkbox" />
+                            <span>Mark black stretches as media segments</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Fades to black and black gaps, in every video, including those with chapters of their own.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MinBlackSeconds">Shortest black stretch (seconds)</label>
+                        <input id="MinBlackSeconds" name="MinBlackSeconds" type="number" is="emby-input" min="0.04" step="0.1" />
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="BlackSegmentType">Segment type</label>
+                        <select is="emby-select" id="BlackSegmentType" name="BlackSegmentType" class="emby-select-withcolor emby-select">
+                            <option value="Unknown">Unknown (no action in clients by default)</option>
+                            <option value="Commercial">Commercial</option>
+                            <option value="Preview">Preview</option>
+                            <option value="Recap">Recap</option>
+                            <option value="Outro">Outro</option>
+                            <option value="Intro">Intro</option>
+                        </select>
+                        <div class="fieldDescription">What clients see the stretches as; their skip settings are per type.</div>
                     </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
@@ -48,6 +72,9 @@
                         document.querySelector('#ChapterIntervalMinutes').value = config.ChapterIntervalMinutes;
                         document.querySelector('#Downscale').value = config.Downscale;
                         document.querySelector('#UseSeveralCores').checked = config.UseSeveralCores;
+                        document.querySelector('#MarkBlackSegments').checked = config.MarkBlackSegments;
+                        document.querySelector('#MinBlackSeconds').value = config.MinBlackSeconds;
+                        document.querySelector('#BlackSegmentType').value = config.BlackSegmentType;
                         Dashboard.hideLoadingMsg();
                     });
                 });
@@ -59,6 +86,9 @@
                         config.ChapterIntervalMinutes = parseInt(document.querySelector('#ChapterIntervalMinutes').value, 10) || 5;
                         config.Downscale = parseInt(document.querySelector('#Downscale').value, 10) || 0;
                         config.UseSeveralCores = document.querySelector('#UseSeveralCores').checked;
+                        config.MarkBlackSegments = document.querySelector('#MarkBlackSegments').checked;
+                        config.MinBlackSeconds = parseFloat(document.querySelector('#MinBlackSeconds').value) || 1;
+                        config.BlackSegmentType = document.querySelector('#BlackSegmentType').value;
                         ApiClient.updatePluginConfiguration(ShotChaptersConfig.pluginUniqueId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
                         });

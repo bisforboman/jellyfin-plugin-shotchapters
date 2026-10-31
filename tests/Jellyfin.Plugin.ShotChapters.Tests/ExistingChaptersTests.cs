@@ -39,31 +39,47 @@ public class ExistingChaptersTests
     public void NeverScannedOrChangedIsScanned(int value)
     {
         var kind = (ChapterKind)value;
-        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, null, 7, "s"));
-        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, Record(0, 99), 8, "s"));
-        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, Record(0, 99), 7, "t"));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, null, 7, "s", false));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, Record(0, 99), 8, "s", false));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, Record(0, 99), 7, "t", false));
     }
 
     [Fact]
     public void TheFilesOwnChaptersAreNeverTouched()
     {
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, null, 7, "s"));
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, Record(0, 99), 8, "s"));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, null, 7, "s", false));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, Record(0, 99), 8, "s", false));
     }
 
     [Fact]
     public void OursInPlaceOrNothingFoundIsSkipped()
     {
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, Record(0, 99), 7, "s"));
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.None, Record(), 7, "s"));
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Dummy, Record(), 7, "s"));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, Record(0, 99), 7, "s", false));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.None, Record(), 7, "s", false));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Dummy, Record(), 7, "s", false));
     }
 
     [Theory]
     [InlineData((int)ChapterKind.None)]
     [InlineData((int)ChapterKind.Dummy)]
     public void OursReplacedByARefreshAreRestored(int kind) =>
-        Assert.Equal(ChapterAction.Restore, ChapterDecision.Decide((ChapterKind)kind, Record(0, 99), 7, "s"));
+        Assert.Equal(ChapterAction.Restore, ChapterDecision.Decide((ChapterKind)kind, Record(0, 99), 7, "s", false));
+
+    [Fact]
+    public void WithSegmentsOnAVideoWithItsOwnChaptersIsScannedOnce()
+    {
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Other, null, 7, "s", true));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Other, Record(), 8, "s", true));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, Record(), 7, "s", true));
+    }
+
+    [Fact]
+    public void WithSegmentsOnTheChapterDecisionsStayTheSame()
+    {
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, Record(0, 99), 7, "s", true));
+        Assert.Equal(ChapterAction.Restore, ChapterDecision.Decide(ChapterKind.Dummy, Record(0, 99), 7, "s", true));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.None, null, 7, "s", true));
+    }
 
     [Fact]
     public void TheStateSurvivesAReload()
@@ -71,12 +87,17 @@ public class ExistingChaptersTests
         string path = Path.Combine(Path.GetTempPath(), $"shotchapters-{Guid.NewGuid():N}", "chapters.json");
         var id = Guid.NewGuid();
         var state = ChapterState.Load(path);
-        state.Set(id, Record(0, 99));
+        state.Set(id, Record(0, 99) with { BlackSpans = [new BlackSpan(5, 10)] });
         state.Save();
         var loaded = ChapterState.Load(path).Get(id);
         Assert.NotNull(loaded);
         Assert.Equal([0L, 99], loaded.Chapters);
         Assert.Equal("s", loaded.Settings);
+        Assert.Equal([new BlackSpan(5, 10)], loaded.BlackSpans);
+        var reloaded = ChapterState.Load(path);
+        Assert.True(reloaded.Remove(id));
+        reloaded.Save();
+        Assert.Null(ChapterState.Load(path).Get(id));
         File.WriteAllText(path, "{ not json");
         Assert.Null(ChapterState.Load(path).Get(id));
         Directory.Delete(Path.GetDirectoryName(path)!, true);
