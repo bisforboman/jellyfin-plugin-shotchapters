@@ -52,7 +52,8 @@ docs/decisions/2026-10-31-jellyfin-plugin.md; the scoping note is docs/ideas/jel
   repository's settings.
 - **Before pushing:** run `dotnet test` with SHOTCHAPTERS_FFMPEG set, then package once to check the zip.
 - **Releases:** the owner says when to release. Bump `build.yaml` (`X.Y.Z.0`, with its changelog) and the csproj
-  (`X.Y.Z`) in a PR, then push the tag `vX.Y.Z` on main. `release.yml` publishes the zip and `manifest.json`; the
+  (`X.Y.Z`) in a PR, then push the tag `vX.Y.Z` on main, or dispatch `release.yml` on main (cloud sessions: their git
+  proxy refuses tag pushes and the refs API, but `workflow_dispatch` works), which creates the tag. `release.yml` publishes the zip and `manifest.json`; the
   stable URL is `releases/latest/download/manifest.json`. Jellyfin checks each zip's MD5 against the manifest's
   `checksum`.
 - **Pinned actions:** actions are pinned by commit SHA, with the tag in a comment.

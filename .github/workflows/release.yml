@@ -1,6 +1,7 @@
 name: Release
 
-# Push a tag vX.Y.Z on main once build.yaml's version is X.Y.Z.0 and the csproj's X.Y.Z: this tests, packages
+# Push a tag vX.Y.Z on main once build.yaml's version is X.Y.Z.0 and the csproj's X.Y.Z, or run this workflow on main
+# by hand (Actions -> Release -> Run workflow), which releases build.yaml's version and creates its tag: this tests, packages
 # shot-chapters_X.Y.Z.0.zip and publishes a GitHub release with it and manifest.json (every version so far), the
 # plugin repository users add in Jellyfin:
 # https://github.com/bisforboman/jellyfin-plugin-shotchapters/releases/latest/download/manifest.json
@@ -8,6 +9,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,7 +26,7 @@ jobs:
       FFMPEG_NAME: ffmpeg-n8.1.3-9-g29e619e767-linux64-gpl-8.1
       FFMPEG_SHA256: 97ce978979194b5cf7e06a5e68020dbdaa7a4f3294c5452b6a1bc347100dbb79
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -32,6 +34,16 @@ jobs:
           global-json-file: global.json
       - name: Versions agree
         run: |
+          if [ -z "$TAG" ]; then
+            # Run by hand: release build.yaml's version, from main only, once.
+            [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::run it on main"; exit 1; }
+            v=$(sed -n 's/^version: "\(.*\)\.0"$/\1/p' build.yaml)
+            TAG="v$v"
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "::error::$TAG is already released"; exit 1
+            fi
+            echo "TAG=$TAG" >> "$GITHUB_ENV"
+          fi
           v="${TAG#v}"
           grep -q "^version: \"$v.0\"" build.yaml || { echo "::error::build.yaml's version isn't $v.0"; exit 1; }
           grep -q "<Version>$v</Version>" src/Jellyfin.Plugin.ShotChapters/Jellyfin.Plugin.ShotChapters.csproj \
@@ -71,5 +83,5 @@ jobs:
           print("`https://github.com/bisforboman/jellyfin-plugin-shotchapters/releases/latest/download/manifest.json`,")
           print("then Catalog -> Shot Chapters. Needs Jellyfin " + b["targetAbi"].rsplit(".", 2)[0] + " or newer.")
           PY
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Shot Chapters $TAG" --notes-file artifacts/notes.md \
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Shot Chapters $TAG" --notes-file artifacts/notes.md \
             --latest "$ZIP" artifacts/manifest.json
