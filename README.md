@@ -7,7 +7,17 @@ marks black stretches (fades to black, black gaps) as media segments.
 The cuts come from [ShotDetector](https://github.com/bisforboman/shotdetector), a C# port of PySceneDetect. Its adaptive
 detector is PySceneDetect's default.
 
-**Status:** first version, not released yet. Needs Jellyfin 12.0 or newer.
+Needs Jellyfin 12.0 or newer.
+
+## Installing
+
+In Jellyfin: Dashboard → Plugins → Repositories → add (+). Name it *Shot Chapters*, and give it this URL:
+
+```
+https://github.com/bisforboman/jellyfin-plugin-shotchapters/releases/latest/download/manifest.json
+```
+
+Then go to Catalog → Shot Chapters → Install, and restart the server. Updates show up in the same catalog.
 
 ## What it does
 
@@ -55,8 +65,18 @@ dotnet publish src/Jellyfin.Plugin.ShotChapters -c Release -o artifacts/publish
 python3 tools/package.py artifacts/publish artifacts/shot-chapters.zip
 ```
 
-To install by hand, unzip `shot-chapters.zip` into a folder `Shot Chapters_0.1.0.0` under the server's `plugins`
-folder and restart Jellyfin. CI builds the zip on every push; download it from the run's artifacts.
+To install a build by hand, unzip `shot-chapters.zip` into a folder `Shot Chapters_<version>` under the server's
+`plugins` folder and restart Jellyfin. CI builds the zip on every push; download it from the run's artifacts.
+
+## Releasing
+
+1. Set the version in `build.yaml` (`X.Y.Z.0`, with its `changelog`) and in the csproj (`<Version>X.Y.Z</Version>`),
+   in a PR.
+2. Once that has merged, push a tag `vX.Y.Z` on main.
+
+`release.yml` checks that the versions agree, tests and packages the plugin, and publishes a GitHub release with
+`shot-chapters_X.Y.Z.0.zip` and `manifest.json`. The manifest lists every version released so far
+(`tools/manifest.py` adds the new one to the previous release's), so the URL above always serves the full list.
 
 ## Licence
 
