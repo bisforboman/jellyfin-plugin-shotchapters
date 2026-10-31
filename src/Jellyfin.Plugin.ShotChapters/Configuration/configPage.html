@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Shot Chapters</title>
+</head>
+<body>
+    <div id="ShotChaptersConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="ShotChaptersConfigForm">
+                    <p>Chapters are made by the scheduled task "Generate chapters from shots", for videos that have no chapters
+                        or only Jellyfin's evenly spaced ones. A file's own chapters are never replaced.</p>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ChapterIntervalMinutes">Minutes between chapters</label>
+                        <input id="ChapterIntervalMinutes" name="ChapterIntervalMinutes" type="number" is="emby-input" min="1" />
+                        <div class="fieldDescription">About one chapter this often, each at the strongest cut nearby.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="Downscale">Downscale factor</label>
+                        <input id="Downscale" name="Downscale" type="number" is="emby-input" min="0" />
+                        <div class="fieldDescription">0: automatic (as PySceneDetect). Larger is faster and coarser.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="UseSeveralCores" name="UseSeveralCores" type="checkbox" is="emby-checkbox" />
+                            <span>Scan each file on several cores</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Faster, but busier while it runs.</div>
+                    </div>
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            var ShotChaptersConfig = {
+                pluginUniqueId: 'a021d41c-4b7d-41e1-a024-faac0116f5b6'
+            };
+
+            document.querySelector('#ShotChaptersConfigPage')
+                .addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(ShotChaptersConfig.pluginUniqueId).then(function (config) {
+                        document.querySelector('#ChapterIntervalMinutes').value = config.ChapterIntervalMinutes;
+                        document.querySelector('#Downscale').value = config.Downscale;
+                        document.querySelector('#UseSeveralCores').checked = config.UseSeveralCores;
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+            document.querySelector('#ShotChaptersConfigForm')
+                .addEventListener('submit', function (e) {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(ShotChaptersConfig.pluginUniqueId).then(function (config) {
+                        config.ChapterIntervalMinutes = parseInt(document.querySelector('#ChapterIntervalMinutes').value, 10) || 5;
+                        config.Downscale = parseInt(document.querySelector('#Downscale').value, 10) || 0;
+                        config.UseSeveralCores = document.querySelector('#UseSeveralCores').checked;
+                        ApiClient.updatePluginConfiguration(ShotChaptersConfig.pluginUniqueId, config).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                        });
+                    });
+
+                    e.preventDefault();
+                    return false;
+                });
+        </script>
+    </div>
+</body>
+</html>
