@@ -48,6 +48,8 @@ docs/decisions/2026-10-31-jellyfin-plugin.md; the scoping note is docs/ideas/jel
 ## Working here
 
 - **Branches:** work on a branch and open a PR; don't push to main.
+- **Merging:** merge your own PR yourself once CI is green (the owner's choice, 2026-10-31). Auto-merge is off in the
+  repository's settings.
 - **Before pushing:** run `dotnet test` with SHOTCHAPTERS_FFMPEG set, then package once to check the zip.
 - **Pinned actions:** actions are pinned by commit SHA, with the tag in a comment.
 - **Commit messages:** say what and why. Keep commits small.
