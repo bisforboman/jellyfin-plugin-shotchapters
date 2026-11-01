@@ -138,7 +138,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         try
         {
             int? downscale = config.Downscale > 0 ? config.Downscale : null;
-            (double, double)? black = config.MarkBlackSegments ? (PluginConfiguration.BlackThreshold, config.BlackMinSeconds) : null;
+            var black = config.MarkBlackSegments ? config.BlackDetect : null;
             var scan = await ShotScanner.ScanAsync(video.Path, ffmpegDirectory, downscale, config.UseSeveralCores, black, cancellationToken)
                 .ConfigureAwait(false);
             double duration = video.RunTimeTicks is > 0 and long ticks ? TimeSpan.FromTicks(ticks).TotalSeconds : scan.DurationSeconds;
