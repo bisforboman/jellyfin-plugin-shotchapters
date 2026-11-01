@@ -5,7 +5,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- The plugin folder gets every dependency's DLL (build.yaml lists them), as Jellyfin loads plugins from it. -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
