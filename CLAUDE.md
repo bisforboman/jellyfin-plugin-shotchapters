@@ -16,10 +16,10 @@ docs/decisions/2026-10-31-jellyfin-plugin.md; the scoping note is docs/ideas/jel
   - Pure logic, tested without Jellyfin:
     - `ChapterPicker`: chapter starts from the cuts.
     - `ExistingChapters`/`ChapterDecision`: whose chapters a video has, and what to do with it.
-    - `BlackSpans`: black stretches from the per-frame `average_rgb`.
     - `ChapterState`: the records, as JSON. `Shared` is the instance the task and the provider share; it is
       thread-safe.
-  - `ShotScanner`: the ShotDetector call.
+  - `ShotScanner`: the ShotDetector call: the adaptive detector, plus blackdetect on the same pass
+    (`DetectionOptions.BlackDetect`, ShotDetector 3.26.0+).
 - `tests/`: xunit v3 on Microsoft.Testing.Platform (`dotnet test --solution ...`). `ShotScannerTests` needs
   `SHOTCHAPTERS_FFMPEG`, a folder holding FFmpeg 8's ffmpeg and ffprobe. CI downloads a pinned BtbN build.
 - `build.yaml`: the plugin's manifest. `tools/package.py` turns it into the zip's `meta.json`, with `assemblies` set.
@@ -40,8 +40,11 @@ docs/decisions/2026-10-31-jellyfin-plugin.md; the scoping note is docs/ideas/jel
 - **Segment ids:** `MediaSegmentDto.Id` is stored as the row's key, so each segment needs its own (`Guid.NewGuid()`).
   `RunSegmentPluginProviders` compares start, end and type, and leaves unchanged segments alone.
   `CleanupExtractedData` (12.x) is called when an item's file changes; the plugin forgets the item there.
-- **Black frames:** they come from ThresholdDetector's `average_rgb`, so that detector runs alongside the adaptive one,
-  and its fade cuts are chapter candidates too.
+- **Black stretches:** these are ffmpeg blackdetect's spans, from ShotDetector's `DetectionOptions.BlackDetect`
+  (`DetectionResult.BlackSpans`), on the detection pass. Since 2026-11-01 they no longer come from ThresholdDetector's
+  `average_rgb`, which missed raised-black masters (Tears of Steel) and marked dark scenes; the decision is
+  docs/decisions/2026-11-01-jellyfin-black-spans.md in shotdetector. Only the adaptive detector runs, so cuts are its
+  cuts.
 - **No frame skip:** `DetectionOptions.FrameSkip` can't be combined with `CollectStats`, and the cut strengths
   (`content_val`) come from the stats.
 

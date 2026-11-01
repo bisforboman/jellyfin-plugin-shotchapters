@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ShotDetector;
 
 namespace Jellyfin.Plugin.ShotChapters.Tests;
 
@@ -31,6 +32,24 @@ public class ShotScannerTests
         "-f", "lavfi", "-i", "color=c=black:size=320x240:rate=25:duration=3",
         "-f", "lavfi", "-i", "smptebars=size=320x240:rate=25:duration=8",
         "-filter_complex", "[0][1][2]concat=n=3:v=1[v]");
+
+    /// <summary>ffmpeg's own <c>-vf blackdetect=d=..</c> spans of a file, from its log.</summary>
+    static List<(double, double)> Blackdetect(string ffmpegDirectory, string path, double minSeconds)
+    {
+        var start = new ProcessStartInfo(Path.Combine(ffmpegDirectory, "ffmpeg")) { RedirectStandardError = true };
+        foreach (string arg in (string[])["-nostdin", "-hide_banner", "-i", path, "-map", "0:v:0", "-vf",
+            string.Create(System.Globalization.CultureInfo.InvariantCulture, $"blackdetect=d={minSeconds}"), "-an", "-f", "null", "-"])
+        {
+            start.ArgumentList.Add(arg);
+        }
+
+        using var process = Process.Start(start)!;
+        string log = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        return [.. System.Text.RegularExpressions.Regex.Matches(log, @"black_start:([0-9.]+) black_end:([0-9.]+)")
+            .Select(m => (double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture),
+                double.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture)))];
+    }
 
     static string MakeClip(string ffmpegDirectory, params string[] inputs)
     {
@@ -75,21 +94,24 @@ public class ShotScannerTests
         }
     }
 
-    [Fact]
-    public async Task FindsTheBlackStretch()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FindsTheBlackStretchAsBlackdetectDoes(bool parallel)
     {
         string ffmpeg = FfmpegDirectory();
         string clip = MakeBlackClip(ffmpeg);
         try
         {
-            var (cuts, duration, black) = await ShotScanner.ScanAsync(clip, ffmpeg, null, false, (12, 1), TestContext.Current.CancellationToken);
+            var (cuts, duration, black) = await ShotScanner.ScanAsync(clip, ffmpeg, null, parallel, new BlackDetectOptions { MinDuration = TimeSpan.FromSeconds(1) }, TestContext.Current.CancellationToken);
             Assert.Equal([(8.0, 11.0)], black);
+            Assert.Equal(Blackdetect(ffmpeg, clip, 1), black);
             Assert.Equal(19.0, duration, 3);
             Assert.Contains(cuts, c => c.Seconds == 8.0);
             Assert.Contains(cuts, c => c.Seconds == 11.0);
 
             // Longer than the stretch: none.
-            var (_, _, none) = await ShotScanner.ScanAsync(clip, ffmpeg, null, false, (12, 3.5), TestContext.Current.CancellationToken);
+            var (_, _, none) = await ShotScanner.ScanAsync(clip, ffmpeg, null, false, new BlackDetectOptions { MinDuration = TimeSpan.FromSeconds(3.5) }, TestContext.Current.CancellationToken);
             Assert.Empty(none);
         }
         finally

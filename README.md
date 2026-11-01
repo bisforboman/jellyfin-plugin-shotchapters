@@ -32,9 +32,11 @@ Then go to Catalog → Shot Chapters → Install, and restart the server. Update
 - **Each file is scanned once.** A file is scanned again only when it changes or the settings do. When a metadata
   refresh puts Jellyfin's own chapters back, the next run restores the plugin's chapters without scanning again.
   The plugin keeps its records in `chapters.json` in its data folder.
-- **Black stretches:** with *Mark black stretches as media segments* on (the default), the same scan also finds runs of
-  frames whose mean brightness is under 12 of 255, PySceneDetect's fade threshold. Runs of at least 1 s by default
-  are kept, in every video, including those with chapters of their own. The plugin reports them as media segments
+- **Black stretches:** with *Mark black stretches as media segments* on (the default), the same scan also finds black
+  stretches exactly as ffmpeg's `blackdetect` filter does, with its thresholds: a frame is black when 98% of its pixels
+  are within 10% of black. This works on masters whose black isn't true black too. Stretches of at least 1 s by default
+  are kept, in every video, including those with chapters of their own. No second decode: ShotDetector runs
+  blackdetect on the detection pass. The plugin reports them as media segments
   of the type you choose. The default type is *Unknown*, on which clients take no action unless told to; their skip
   settings are per type. They are stored as soon as a file is scanned, and Jellyfin's *Media Segment Scan* keeps
   them. Libraries can turn the provider off under their media segment settings, as with any other provider.
@@ -50,7 +52,7 @@ Dashboard → Plugins → Shot Chapters:
 - **Scan each file on several cores:** off by default. When on, ShotDetector scans long files in chunks on several
   cores (files of two minutes or more, on 4 CPUs or more).
 - **Mark black stretches as media segments:** on by default.
-- **Shortest black stretch:** in seconds, default 1.
+- **Shortest black stretch:** in seconds, default 1 (blackdetect's `d`).
 - **Segment type:** the type the black stretches get. The default is Unknown.
 
 Changing a setting other than the segment type makes the next run scan every file again.
