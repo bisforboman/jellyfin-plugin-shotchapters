@@ -122,7 +122,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         var kind = ExistingChapters.Classify(current, _serverConfiguration.Configuration.DummyChapterDuration, record?.Chapters);
         long fileTicks = video.DateModified.Ticks;
         string settings = config.Key;
-        switch (ChapterDecision.Decide(kind, record, fileTicks, settings, config.MarkBlackSegments))
+        switch (ChapterDecision.Decide(kind, record, fileTicks, settings, config.MarkBlackSegments, video.RunTimeTicks))
         {
             case ChapterAction.Skip:
                 return false;
@@ -141,7 +141,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
             var black = config.MarkBlackSegments ? config.BlackDetect : null;
             var scan = await ShotScanner.ScanAsync(video.Path, ffmpegDirectory, downscale, config.UseSeveralCores, black, cancellationToken)
                 .ConfigureAwait(false);
-            double duration = video.RunTimeTicks is > 0 and long ticks ? TimeSpan.FromTicks(ticks).TotalSeconds : scan.DurationSeconds;
+            double duration = TimeSpan.FromTicks(video.RunTimeTicks!.Value).TotalSeconds;
             List<long> starts = [];
             if (kind != ChapterKind.Other)
             {
@@ -149,8 +149,23 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
                 starts = ChapterPicker.Pick(scan.Cuts, duration, interval, Math.Min(60, interval / 2))
                     .Select(Ticks)
                     .ToList();
-                // As stored: Jellyfin drops chapters past the runtime, and the record must match what it keeps.
-                starts = starts.Count <= 1 ? [] : Save(video, starts);
+                if (starts.Count > 1)
+                {
+                    // As stored: Jellyfin drops chapters past the runtime, and the record must match what it keeps.
+                    var kept = Save(video, starts);
+                    if (kept.Count <= 1)
+                    {
+                        // Jellyfin kept none of them (its runtime changed under the scan): try again on a later run.
+                        LogNotKept(video.Name, video.Path, starts.Count);
+                        return false;
+                    }
+
+                    starts = kept;
+                }
+                else
+                {
+                    starts = [];
+                }
             }
 
             var spans = scan.Black.Select(b => new BlackSpan(Ticks(b.Start), Ticks(b.End))).ToList();
@@ -208,6 +223,9 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Storing the media segments of {Name} failed; Jellyfin's next media segment scan stores them")]
     partial void LogSegmentsFailed(Exception exception, string name);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Jellyfin kept none of the {Chapters} shot chapters of {Name} ({Path}); trying again on the next run")]
+    partial void LogNotKept(string name, string path, int chapters);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Shot chapters failed for {Name} ({Path})")]
     partial void LogFailed(Exception exception, string name, string path);

@@ -70,9 +70,16 @@ internal static class ChapterDecision
     /// <param name="fileModifiedTicks">The file's modification time now.</param>
     /// <param name="settings">The settings now.</param>
     /// <param name="segments">Whether black segments are on: then a video with its own chapters is scanned too, for them.</param>
+    /// <param name="runTimeTicks">
+    /// The video's runtime as Jellyfin knows it. Until its library scan has read the file this is null or 0, and
+    /// Jellyfin's SaveChapters would drop every chapter (it keeps those before the runtime), so the video waits for a
+    /// later run, unrecorded.
+    /// </param>
     /// <returns>The action.</returns>
-    public static ChapterAction Decide(ChapterKind kind, ChapterRecord? record, long fileModifiedTicks, string settings, bool segments)
+    public static ChapterAction Decide(ChapterKind kind, ChapterRecord? record, long fileModifiedTicks, string settings, bool segments, long? runTimeTicks)
     {
+        if (runTimeTicks is not > 0)
+            return ChapterAction.Skip;
         if (kind == ChapterKind.Other && !segments)
             return ChapterAction.Skip;
         if (record is null || record.FileModifiedTicks != fileModifiedTicks || record.Settings != settings)
