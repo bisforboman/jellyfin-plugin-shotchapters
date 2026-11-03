@@ -3,6 +3,7 @@ namespace Jellyfin.Plugin.ShotChapters.Tests;
 public class ExistingChaptersTests
 {
     static readonly long Minute = TimeSpan.TicksPerMinute;
+    static readonly long? Runtime = 734 * TimeSpan.TicksPerSecond;
 
     [Theory]
     [InlineData(new long[0])]
@@ -39,46 +40,57 @@ public class ExistingChaptersTests
     public void NeverScannedOrChangedIsScanned(int value)
     {
         var kind = (ChapterKind)value;
-        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, null, 7, "s", false));
-        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, Record(0, 99), 8, "s", false));
-        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, Record(0, 99), 7, "t", false));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, null, 7, "s", false, Runtime));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, Record(0, 99), 8, "s", false, Runtime));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(kind, Record(0, 99), 7, "t", false, Runtime));
     }
 
     [Fact]
     public void TheFilesOwnChaptersAreNeverTouched()
     {
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, null, 7, "s", false));
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, Record(0, 99), 8, "s", false));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, null, 7, "s", false, Runtime));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, Record(0, 99), 8, "s", false, Runtime));
     }
 
     [Fact]
     public void OursInPlaceOrNothingFoundIsSkipped()
     {
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, Record(0, 99), 7, "s", false));
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.None, Record(), 7, "s", false));
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Dummy, Record(), 7, "s", false));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, Record(0, 99), 7, "s", false, Runtime));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.None, Record(), 7, "s", false, Runtime));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Dummy, Record(), 7, "s", false, Runtime));
     }
 
     [Theory]
     [InlineData((int)ChapterKind.None)]
     [InlineData((int)ChapterKind.Dummy)]
     public void OursReplacedByARefreshAreRestored(int kind) =>
-        Assert.Equal(ChapterAction.Restore, ChapterDecision.Decide((ChapterKind)kind, Record(0, 99), 7, "s", false));
+        Assert.Equal(ChapterAction.Restore, ChapterDecision.Decide((ChapterKind)kind, Record(0, 99), 7, "s", false, Runtime));
 
     [Fact]
     public void WithSegmentsOnAVideoWithItsOwnChaptersIsScannedOnce()
     {
-        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Other, null, 7, "s", true));
-        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Other, Record(), 8, "s", true));
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, Record(), 7, "s", true));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Other, null, 7, "s", true, Runtime));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Other, Record(), 8, "s", true, Runtime));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, Record(), 7, "s", true, Runtime));
     }
 
     [Fact]
     public void WithSegmentsOnTheChapterDecisionsStayTheSame()
     {
-        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, Record(0, 99), 7, "s", true));
-        Assert.Equal(ChapterAction.Restore, ChapterDecision.Decide(ChapterKind.Dummy, Record(0, 99), 7, "s", true));
-        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.None, null, 7, "s", true));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, Record(0, 99), 7, "s", true, Runtime));
+        Assert.Equal(ChapterAction.Restore, ChapterDecision.Decide(ChapterKind.Dummy, Record(0, 99), 7, "s", true, Runtime));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.None, null, 7, "s", true, Runtime));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0L)]
+    public void AVideoJellyfinHasntReadYetWaits(long? runtime)
+    {
+        // Mid library scan: its runtime is unknown and SaveChapters would drop every chapter, so no scan, no record.
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.None, null, 7, "s", true, runtime));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Dummy, Record(0, 99), 7, "s", false, runtime));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.None, null, 7, "s", true, Runtime));
     }
 
     [Fact]

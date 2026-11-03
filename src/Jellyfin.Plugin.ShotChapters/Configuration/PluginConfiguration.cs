@@ -27,11 +27,12 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// Gets the settings that change what a scan finds, as a string kept with each video's record (the segment type
-    /// isn't one: the provider applies it when it reports).
+    /// isn't one: the provider applies it when it reports). v4: before it, a video scanned while its library scan hadn't
+    /// read its runtime was recorded with no chapters (Jellyfin had dropped them all), so every video is scanned once more.
     /// </summary>
     internal string Key => string.Create(
         CultureInfo.InvariantCulture,
-        $"v3;interval={IntervalMinutes};downscale={Downscale};black={(MarkBlackSegments ? $"blackdetect:{BlackMinSeconds}" : "off")}");
+        $"v4;interval={IntervalMinutes};downscale={Downscale};black={(MarkBlackSegments ? $"blackdetect:{BlackMinSeconds}" : "off")}");
 
     /// <summary>Gets the interval, at least one minute.</summary>
     internal int IntervalMinutes => Math.Max(1, ChapterIntervalMinutes);

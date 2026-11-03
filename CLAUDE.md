@@ -34,7 +34,9 @@ docs/decisions/2026-10-31-jellyfin-plugin.md; the scoping note is docs/ideas/jel
   every .dll in the folder as managed. So ship none, and keep `assemblies` in meta.json.
 - **Refreshes replace chapters:** a metadata refresh (Default/FullRefresh) saves ffprobe's chapters again, or dummy
   ones. Dummy chapters start at multiples of `DummyChapterDuration` from 0. `SaveChapters` drops chapters past the
-  runtime, so the task records what `GetChapters` returns after saving.
+  runtime, so the task records what `GetChapters` returns after saving. Until a video's library scan has read the
+  file, `RunTimeTicks` is null and SaveChapters drops them all: the task skips such a video, unrecorded, and records
+  nothing when Jellyfin keeps none of the chapters it saved (found on 0.2.0 in a fresh server, 2026-11-03).
 - **FFmpeg version:** ShotDetector needs a recent FFmpeg through the executable: 6.1 lacks `in_chroma_loc`. 8.1 works,
   and that is jellyfin-ffmpeg's version.
 - **Segment ids:** `MediaSegmentDto.Id` is stored as the row's key, so each segment needs its own (`Guid.NewGuid()`).
