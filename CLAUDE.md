@@ -52,6 +52,8 @@ docs/decisions/2026-10-31-jellyfin-plugin.md; the scoping note is docs/ideas/jel
 
 ## Working here
 
+- **Asking the owner:** when a choice is the owner's (what to work on next, a scope or design call), ask with the
+  question prompt (AskUserQuestion), not a question at the end of a reply (the owner's choice, 2026-11-07).
 - **Branches:** work on a branch and open a PR; don't push to main.
 - **Merging:** merge your own PR yourself once CI is green (the owner's choice, 2026-10-31). Auto-merge is off in the
   repository's settings.
