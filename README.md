@@ -4,6 +4,12 @@ A [Jellyfin](https://jellyfin.org) plugin that adds chapters at shot cuts to vid
 such as most rips and home videos. With those chapters, Jellyfin can show chapter images and skip by chapter. It also
 marks black stretches (fades to black, black gaps) as media segments.
 
+![Big Buck Bunny's page in Jellyfin 12.4, with a row of chapter images at shot cuts](docs/screenshot-chapters.png)
+
+*Big Buck Bunny has no chapters of its own; these are the plugin's, one about every minute (Minutes between chapters
+set to 1), each at a cut. Scanning the 10.5-minute 1080p film took 50 s on 4 CPU cores with "Scan each file on several
+cores" on. Big Buck Bunny © Blender Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).*
+
 The cuts come from [ShotDetector](https://github.com/bisforboman/shotdetector), a C# port of PySceneDetect. Its adaptive
 detector is PySceneDetect's default.
 
@@ -40,6 +46,8 @@ Then go to Catalog → Shot Chapters → Install, and restart the server. Update
   of the type you choose. The default type is *Unknown*, on which clients take no action unless told to; their skip
   settings are per type. They are stored as soon as a file is scanned, and Jellyfin's *Media Segment Scan* keeps
   them. Libraries can turn the provider off under their media segment settings, as with any other provider.
+- **Scan time:** about 5 s per minute of video on 4 CPU cores with *Scan each file on several cores* on: 50 s for Big
+  Buck Bunny (1080p, 10.5 min), 63 s for Sintel (720p, 15 min). A two-hour film takes roughly ten minutes.
 - **Decoding:** files are decoded by Jellyfin's own ffmpeg (jellyfin-ffmpeg 8; `ffprobe` must be next to it). Nothing
   native ships with the plugin.
 
