@@ -1,7 +1,7 @@
 ---
 name: "Shot Chapters"
 guid: "a021d41c-4b7d-41e1-a024-faac0116f5b6"
-version: "0.2.1.0"
+version: "0.3.0.0"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 overview: "Chapters from shot cuts for videos without chapters of their own"
@@ -18,6 +18,6 @@ artifacts:
 - "FrameReader.dll"
 - "FFmpeg.AutoGen.dll"
 changelog: >
-  Fixes chapters lost for videos the task reached while Jellyfin's library scan was still reading them: such a
-  video now waits for a later run. Every file is scanned once more after the update, which also repairs files
-  0.2.0 left without chapters.
+  Adds "Guess end credits (test: log only)", off by default: each scan writes a guess of where the end credits are
+  to the server log, and makes no segments. Turning it on scans every video once more. Nothing else changes, and
+  no file is scanned again after the update.
