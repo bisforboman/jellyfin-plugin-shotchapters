@@ -175,7 +175,8 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
             {
                 // The scan's length, which the cuts are measured against; Jellyfin's runtime when the scan has none.
                 double length = scan.DurationSeconds > 0 ? scan.DurationSeconds : duration;
-                if (CreditsGuess.Guess(scan.Cuts.Select(c => c.Seconds), length) is { } guess)
+                var share = (double from, double to) => CreditsGuess.CreditsShare(scan.ContentVal, scan.Fps, from, to);
+                if (CreditsGuess.Guess(scan.Cuts.Select(c => c.Seconds), length, share) is { } guess)
                 {
                     credits = new CreditsSpan(Ticks(guess.Start), Ticks(guess.End));
                     TimeSpan start = Whole(guess.Start), end = Whole(guess.End), total = Whole(length);
@@ -193,7 +194,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
                 Settings = settings,
                 Chapters = starts,
                 BlackSpans = spans,
-                CreditsGuessed = config.GuessCredits,
+                CreditsRule = config.GuessCredits ? CreditsGuess.Rule : 0,
                 Credits = credits,
             };
         }
@@ -202,7 +203,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
 #pragma warning restore CA1031
         {
             LogFailed(e, video.Name, video.Path);
-            updated = new ChapterRecord { FileModifiedTicks = fileTicks, Settings = settings, CreditsGuessed = config.GuessCredits, Error = e.Message };
+            updated = new ChapterRecord { FileModifiedTicks = fileTicks, Settings = settings, CreditsRule = config.GuessCredits ? CreditsGuess.Rule : 0, Error = e.Message };
         }
 
         state.Set(video.Id, updated);

@@ -85,7 +85,7 @@ public class ExistingChaptersTests
     [Fact]
     public void GuessingCreditsScansEachVideoOnceMore()
     {
-        var guessed = Record(0, 99) with { CreditsGuessed = true };
+        var guessed = Record(0, 99) with { CreditsRule = CreditsGuess.Rule };
         Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Ours, Record(0, 99), 7, "s", false, Runtime, credits: true));
         Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Other, Record(), 7, "s", false, Runtime, credits: true));
         Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, guessed, 7, "s", false, Runtime, credits: true));
@@ -94,9 +94,25 @@ public class ExistingChaptersTests
     }
 
     [Fact]
+    public void AGuessByAnOlderRuleIsGuessedAgain()
+    {
+        // 0.3.0 recorded "CreditsGuessed": true (rule 1); it reads as no rule.
+        string path = Path.Combine(Path.GetTempPath(), $"shotchapters-{Guid.NewGuid():N}", "chapters.json");
+        var id = Guid.NewGuid();
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, $$$"""{"{{{id}}}":{"FileModifiedTicks":7,"Settings":"s","Chapters":[0,99],"CreditsGuessed":true}}""");
+        var old = ChapterState.Load(path).Get(id);
+        Assert.NotNull(old);
+        Assert.Equal(0, old.CreditsRule);
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Ours, old, 7, "s", false, Runtime, credits: true));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Ours, old with { CreditsRule = 1 }, 7, "s", false, Runtime, credits: true));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, old, 7, "s", false, Runtime));
+    }
+
+    [Fact]
     public void TurningCreditGuessesOffScansNothing()
     {
-        var guessed = Record(0, 99) with { CreditsGuessed = true };
+        var guessed = Record(0, 99) with { CreditsRule = CreditsGuess.Rule };
         Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, guessed, 7, "s", false, Runtime));
         Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, guessed, 7, "s", false, Runtime));
     }
@@ -118,14 +134,14 @@ public class ExistingChaptersTests
         string path = Path.Combine(Path.GetTempPath(), $"shotchapters-{Guid.NewGuid():N}", "chapters.json");
         var id = Guid.NewGuid();
         var state = ChapterState.Load(path);
-        state.Set(id, Record(0, 99) with { BlackSpans = [new BlackSpan(5, 10)], CreditsGuessed = true, Credits = new CreditsSpan(20, 30) });
+        state.Set(id, Record(0, 99) with { BlackSpans = [new BlackSpan(5, 10)], CreditsRule = CreditsGuess.Rule, Credits = new CreditsSpan(20, 30) });
         state.Save();
         var loaded = ChapterState.Load(path).Get(id);
         Assert.NotNull(loaded);
         Assert.Equal([0L, 99], loaded.Chapters);
         Assert.Equal("s", loaded.Settings);
         Assert.Equal([new BlackSpan(5, 10)], loaded.BlackSpans);
-        Assert.True(loaded.CreditsGuessed);
+        Assert.Equal(CreditsGuess.Rule, loaded.CreditsRule);
         Assert.Equal(new CreditsSpan(20, 30), loaded.Credits);
         var reloaded = ChapterState.Load(path);
         Assert.True(reloaded.Remove(id));

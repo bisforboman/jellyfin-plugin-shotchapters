@@ -63,10 +63,11 @@ Dashboard → Plugins → Shot Chapters:
 - **Shortest black stretch:** in seconds, default 1 (blackdetect's `d`).
 - **Segment type:** the type the black stretches get. The default is Unknown.
 - **Guess end credits (test: log only):** off by default. When on, each scan writes a guess of where the end credits
-  are to the server log (*End credits guess for ...*) and makes no segments. The guess is a stretch of at least 2
-  minutes with no cut that ends within a minute of the end, as long scrolling credits are; shorter credits and credits
-  over the picture are missed. Turning it on scans every video once more, including those with chapters of their own;
-  turning it off scans nothing again. It is there to check the guesses on real libraries before credits become
+  are to the server log (*End credits guess for ...*) and makes no segments. The guess is a stretch of at least a
+  minute with no cut that ends within a minute of the end and moves as credits do: scrolling steadily, or still like
+  text cards, for at least 40% of it. Long takes do neither. Credits over the picture, or under a minute between cuts,
+  are missed. Turning it on scans every video once more, including those with chapters of their own, and so does an
+  update that changes the guess; turning it off scans nothing again. It is there to check the guesses on real libraries before credits become
   *Outro* segments ([#10](https://github.com/bisforboman/jellyfin-plugin-shotchapters/issues/10)).
 
 Changing a setting other than the segment type or the credits guess makes the next run scan every file again.

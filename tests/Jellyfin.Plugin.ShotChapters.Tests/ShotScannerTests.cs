@@ -79,7 +79,7 @@ public class ShotScannerTests
         string clip = MakeClip(ffmpeg);
         try
         {
-            var (cuts, duration, black) = await ShotScanner.ScanAsync(clip, ffmpeg, null, parallel, null, TestContext.Current.CancellationToken);
+            var (cuts, duration, black, contentVal, fps) = await ShotScanner.ScanAsync(clip, ffmpeg, null, parallel, null, TestContext.Current.CancellationToken);
             Assert.Empty(black);
             Assert.Equal([8.0, 16.0], cuts.Select(c => c.Seconds));
             Assert.All(cuts, c => Assert.True(c.Strength > 30, $"strength {c.Strength}"));
@@ -103,15 +103,23 @@ public class ShotScannerTests
         string clip = MakeBlackClip(ffmpeg);
         try
         {
-            var (cuts, duration, black) = await ShotScanner.ScanAsync(clip, ffmpeg, null, parallel, new BlackDetectOptions { MinDuration = TimeSpan.FromSeconds(1) }, TestContext.Current.CancellationToken);
+            var (cuts, duration, black, contentVal, fps) = await ShotScanner.ScanAsync(clip, ffmpeg, null, parallel, new BlackDetectOptions { MinDuration = TimeSpan.FromSeconds(1) }, TestContext.Current.CancellationToken);
             Assert.Equal([(8.0, 11.0)], black);
             Assert.Equal(Blackdetect(ffmpeg, clip, 1), black);
             Assert.Equal(19.0, duration, 3);
             Assert.Contains(cuts, c => c.Seconds == 8.0);
             Assert.Contains(cuts, c => c.Seconds == 11.0);
+            // Each frame's content_val: none for the first, the cut's peak at 8 s, nothing in the black, and the static
+            // bars after it are still.
+            Assert.Equal(25, fps);
+            Assert.Equal(19 * 25, contentVal.Count);
+            Assert.True(float.IsNaN(contentVal[0]));
+            Assert.Equal(contentVal.Skip(1).Max(), contentVal[8 * 25]);
+            Assert.All(contentVal.Skip((8 * 25) + 1).Take((3 * 25) - 1), v => Assert.Equal(0, v));
+            Assert.Equal(1, CreditsGuess.CreditsShare(contentVal, fps, 11, 19));
 
             // Longer than the stretch: none.
-            var (_, _, none) = await ShotScanner.ScanAsync(clip, ffmpeg, null, false, new BlackDetectOptions { MinDuration = TimeSpan.FromSeconds(3.5) }, TestContext.Current.CancellationToken);
+            var (_, _, none, _, _) = await ShotScanner.ScanAsync(clip, ffmpeg, null, false, new BlackDetectOptions { MinDuration = TimeSpan.FromSeconds(3.5) }, TestContext.Current.CancellationToken);
             Assert.Empty(none);
         }
         finally

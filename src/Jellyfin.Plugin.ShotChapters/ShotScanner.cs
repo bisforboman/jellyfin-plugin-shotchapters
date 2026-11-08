@@ -2,11 +2,18 @@ using ShotDetector;
 
 namespace Jellyfin.Plugin.ShotChapters;
 
-/// <summary>What a scan found: the cuts, the video's length and its black stretches (seconds).</summary>
+/// <summary>What a scan found: the cuts, the video's length, its black stretches (seconds) and each frame's content_val.</summary>
 /// <param name="Cuts">The cuts with their strengths.</param>
 /// <param name="DurationSeconds">The video's length, from the shots.</param>
 /// <param name="Black">The black stretches (blackdetect's black_start and black_end); empty when not asked for.</param>
-internal sealed record ScanResult(IReadOnlyList<Cut> Cuts, double DurationSeconds, IReadOnlyList<(double Start, double End)> Black);
+/// <param name="ContentVal">Each frame's content_val (NaN where there's none), for <see cref="CreditsGuess.CreditsShare"/>.</param>
+/// <param name="Fps">The frame rate the scan used: frame i is at i / Fps seconds.</param>
+internal sealed record ScanResult(
+    IReadOnlyList<Cut> Cuts,
+    double DurationSeconds,
+    IReadOnlyList<(double Start, double End)> Black,
+    IReadOnlyList<float> ContentVal,
+    double Fps);
 
 /// <summary>Runs ShotDetector on a file and gives its cuts with their strengths, and its black stretches.</summary>
 internal static class ShotScanner
@@ -47,6 +54,9 @@ internal static class ShotScanner
             .ToList();
         double duration = result.Shots.Count > 0 ? result.Shots[^1].End.Seconds : 0;
         IReadOnlyList<(double, double)> spans = result.BlackSpans?.Select(b => (b.Start, b.End)).ToList() ?? [];
-        return new ScanResult(cuts, duration, spans);
+        var contentVal = new float[stats is null ? 0 : result.FrameCount];
+        for (int i = 0; i < contentVal.Length; i++)
+            contentVal[i] = (float)(stats!.Get(i, StrengthKey) ?? double.NaN);
+        return new ScanResult(cuts, duration, spans, contentVal, result.Video.FrameRate.Value);
     }
 }
