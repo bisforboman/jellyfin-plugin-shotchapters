@@ -47,7 +47,7 @@ Then go to Catalog → Shot Chapters → Install, and restart the server. Update
   settings are per type. They are stored as soon as a file is scanned, and Jellyfin's *Media Segment Scan* keeps
   them. Libraries can turn the provider off under their media segment settings, as with any other provider.
 - **Scan time:** about 5 s per minute of video on 4 CPU cores with *Scan each file on several cores* on: 50 s for Big
-  Buck Bunny (1080p, 10.5 min), 63 s for Sintel (720p, 15 min). A two-hour film takes roughly ten minutes.
+  Buck Bunny (1080p, 10.5 min), 63 s for Sintel (720p, 15 min). It depends on the resolution as much as the length.
 - **Decoding:** files are decoded by Jellyfin's own ffmpeg (jellyfin-ffmpeg 8; `ffprobe` must be next to it). Nothing
   native ships with the plugin.
 
