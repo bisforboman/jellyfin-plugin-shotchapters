@@ -16,7 +16,9 @@ docs/decisions/2026-10-31-jellyfin-plugin.md; the scoping note is docs/ideas/jel
   - Pure logic, tested without Jellyfin:
     - `ChapterPicker`: chapter starts from the cuts.
     - `ExistingChapters`/`ChapterDecision`: whose chapters a video has, and what to do with it.
-    - `CreditsGuess`: end credits from the cuts, a test behind `GuessCredits` that only logs and records its guess
+    - `CreditsGuess`: end credits from the cuts and how steady each frame's `content_val` is (scrolling text and cards
+      are, long takes aren't), a test behind `GuessCredits` that only logs and records its guess. A record holds the
+      `CreditsGuess.Rule` it was guessed with; bump it when the rule changes, and those videos are guessed again
       (issue #10; its tests hold the measured films' cuts).
     - `ChapterState`: the records, as JSON. `Shared` is the instance the task and the provider share; it is
       thread-safe.

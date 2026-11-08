@@ -77,7 +77,7 @@ internal static class ChapterDecision
     /// </param>
     /// <param name="credits">
     /// Whether end credits are guessed: then a video with its own chapters is scanned too, and one recorded without a
-    /// guess is scanned once more.
+    /// guess by the current rule (<see cref="CreditsGuess.Rule"/>) is scanned once more.
     /// </param>
     /// <returns>The action.</returns>
     public static ChapterAction Decide(
@@ -89,7 +89,7 @@ internal static class ChapterDecision
             return ChapterAction.Skip;
         if (record is null || record.FileModifiedTicks != fileModifiedTicks || record.Settings != settings)
             return ChapterAction.Scan;
-        if (credits && !record.CreditsGuessed)
+        if (credits && record.CreditsRule != CreditsGuess.Rule)
             return ChapterAction.Scan;
         if (kind is ChapterKind.Other or ChapterKind.Ours || record.Chapters.Count == 0)
             return ChapterAction.Skip;
