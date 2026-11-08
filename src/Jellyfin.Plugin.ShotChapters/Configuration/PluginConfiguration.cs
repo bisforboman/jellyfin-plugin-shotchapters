@@ -26,6 +26,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public MediaSegmentType BlackSegmentType { get; set; } = MediaSegmentType.Unknown;
 
     /// <summary>
+    /// Gets or sets a value indicating whether each scan guesses where the end credits are (<see cref="CreditsGuess"/>)
+    /// and logs it. A test: it makes no segments. Not part of <see cref="Key"/>: turning it on scans each video once
+    /// more (one with chapters of its own too), and turning it off scans nothing again.
+    /// </summary>
+    public bool GuessCredits { get; set; }
+
+    /// <summary>
     /// Gets the settings that change what a scan finds, as a string kept with each video's record (the segment type
     /// isn't one: the provider applies it when it reports). v4: before it, a video scanned while its library scan hadn't
     /// read its runtime was recorded with no chapters (Jellyfin had dropped them all), so every video is scanned once more.

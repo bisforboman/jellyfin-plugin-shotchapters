@@ -82,6 +82,25 @@ public class ExistingChaptersTests
         Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.None, null, 7, "s", true, Runtime));
     }
 
+    [Fact]
+    public void GuessingCreditsScansEachVideoOnceMore()
+    {
+        var guessed = Record(0, 99) with { CreditsGuessed = true };
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Ours, Record(0, 99), 7, "s", false, Runtime, credits: true));
+        Assert.Equal(ChapterAction.Scan, ChapterDecision.Decide(ChapterKind.Other, Record(), 7, "s", false, Runtime, credits: true));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, guessed, 7, "s", false, Runtime, credits: true));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, guessed, 7, "s", false, Runtime, credits: true));
+        Assert.Equal(ChapterAction.Restore, ChapterDecision.Decide(ChapterKind.Dummy, guessed, 7, "s", false, Runtime, credits: true));
+    }
+
+    [Fact]
+    public void TurningCreditGuessesOffScansNothing()
+    {
+        var guessed = Record(0, 99) with { CreditsGuessed = true };
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Ours, guessed, 7, "s", false, Runtime));
+        Assert.Equal(ChapterAction.Skip, ChapterDecision.Decide(ChapterKind.Other, guessed, 7, "s", false, Runtime));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(0L)]
@@ -99,13 +118,15 @@ public class ExistingChaptersTests
         string path = Path.Combine(Path.GetTempPath(), $"shotchapters-{Guid.NewGuid():N}", "chapters.json");
         var id = Guid.NewGuid();
         var state = ChapterState.Load(path);
-        state.Set(id, Record(0, 99) with { BlackSpans = [new BlackSpan(5, 10)] });
+        state.Set(id, Record(0, 99) with { BlackSpans = [new BlackSpan(5, 10)], CreditsGuessed = true, Credits = new CreditsSpan(20, 30) });
         state.Save();
         var loaded = ChapterState.Load(path).Get(id);
         Assert.NotNull(loaded);
         Assert.Equal([0L, 99], loaded.Chapters);
         Assert.Equal("s", loaded.Settings);
         Assert.Equal([new BlackSpan(5, 10)], loaded.BlackSpans);
+        Assert.True(loaded.CreditsGuessed);
+        Assert.Equal(new CreditsSpan(20, 30), loaded.Credits);
         var reloaded = ChapterState.Load(path);
         Assert.True(reloaded.Remove(id));
         reloaded.Save();

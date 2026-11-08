@@ -122,7 +122,7 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
         var kind = ExistingChapters.Classify(current, _serverConfiguration.Configuration.DummyChapterDuration, record?.Chapters);
         long fileTicks = video.DateModified.Ticks;
         string settings = config.Key;
-        switch (ChapterDecision.Decide(kind, record, fileTicks, settings, config.MarkBlackSegments, video.RunTimeTicks))
+        switch (ChapterDecision.Decide(kind, record, fileTicks, settings, config.MarkBlackSegments, video.RunTimeTicks, config.GuessCredits))
         {
             case ChapterAction.Skip:
                 return false;
@@ -170,14 +170,39 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
 
             var spans = scan.Black.Select(b => new BlackSpan(Ticks(b.Start), Ticks(b.End))).ToList();
             LogScanned(video.Name, video.Path, scan.Cuts.Count, starts.Count, spans.Count);
-            updated = new ChapterRecord { FileModifiedTicks = fileTicks, Settings = settings, Chapters = starts, BlackSpans = spans };
+            CreditsSpan? credits = null;
+            if (config.GuessCredits)
+            {
+                // The scan's length, which the cuts are measured against; Jellyfin's runtime when the scan has none.
+                double length = scan.DurationSeconds > 0 ? scan.DurationSeconds : duration;
+                if (CreditsGuess.Guess(scan.Cuts.Select(c => c.Seconds), length) is { } guess)
+                {
+                    credits = new CreditsSpan(Ticks(guess.Start), Ticks(guess.End));
+                    TimeSpan start = Whole(guess.Start), end = Whole(guess.End), total = Whole(length);
+                    LogCredits(video.Name, video.Path, start, end, total);
+                }
+                else
+                {
+                    LogNoCredits(video.Name, video.Path);
+                }
+            }
+
+            updated = new ChapterRecord
+            {
+                FileModifiedTicks = fileTicks,
+                Settings = settings,
+                Chapters = starts,
+                BlackSpans = spans,
+                CreditsGuessed = config.GuessCredits,
+                Credits = credits,
+            };
         }
 #pragma warning disable CA1031 // One file that won't decode mustn't stop the task; it's recorded and logged.
         catch (Exception e) when (e is not OperationCanceledException)
 #pragma warning restore CA1031
         {
             LogFailed(e, video.Name, video.Path);
-            updated = new ChapterRecord { FileModifiedTicks = fileTicks, Settings = settings, Error = e.Message };
+            updated = new ChapterRecord { FileModifiedTicks = fileTicks, Settings = settings, CreditsGuessed = config.GuessCredits, Error = e.Message };
         }
 
         state.Set(video.Id, updated);
@@ -202,6 +227,8 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
 
     static long Ticks(double seconds) => (long)Math.Round(seconds * TimeSpan.TicksPerSecond);
 
+    static TimeSpan Whole(double seconds) => TimeSpan.FromSeconds(Math.Round(seconds));
+
     /// <summary>Saves chapters at these starts.</summary>
     /// <returns>The starts Jellyfin stored.</returns>
     List<long> Save(Video video, IReadOnlyList<long> starts)
@@ -220,6 +247,12 @@ public sealed partial class GenerateChaptersTask : IScheduledTask
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Shot chapters for {Name} ({Path}): {Cuts} cuts, {Chapters} chapters, {Black} black stretches")]
     partial void LogScanned(string name, string path, int cuts, int chapters, int black);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "End credits guess for {Name} ({Path}): {Start} to {End} (length {Length}); a test, no segments are made")]
+    partial void LogCredits(string name, string path, TimeSpan start, TimeSpan end, TimeSpan length);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "End credits guess for {Name} ({Path}): none")]
+    partial void LogNoCredits(string name, string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Storing the media segments of {Name} failed; Jellyfin's next media segment scan stores them")]
     partial void LogSegmentsFailed(Exception exception, string name);

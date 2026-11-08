@@ -52,6 +52,13 @@
                         </select>
                         <div class="fieldDescription">What clients see the stretches as; their skip settings are per type.</div>
                     </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="GuessCredits" name="GuessCredits" type="checkbox" is="emby-checkbox" />
+                            <span>Guess end credits (test: log only)</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Writes each scanned video's guess to the server log and makes no segments. Turning it on scans every video once more, including those with chapters of their own.</div>
+                    </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
@@ -75,6 +82,7 @@
                         document.querySelector('#MarkBlackSegments').checked = config.MarkBlackSegments;
                         document.querySelector('#MinBlackSeconds').value = config.MinBlackSeconds;
                         document.querySelector('#BlackSegmentType').value = config.BlackSegmentType;
+                        document.querySelector('#GuessCredits').checked = config.GuessCredits;
                         Dashboard.hideLoadingMsg();
                     });
                 });
@@ -89,6 +97,7 @@
                         config.MarkBlackSegments = document.querySelector('#MarkBlackSegments').checked;
                         config.MinBlackSeconds = parseFloat(document.querySelector('#MinBlackSeconds').value) || 1;
                         config.BlackSegmentType = document.querySelector('#BlackSegmentType').value;
+                        config.GuessCredits = document.querySelector('#GuessCredits').checked;
                         ApiClient.updatePluginConfiguration(ShotChaptersConfig.pluginUniqueId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
                         });

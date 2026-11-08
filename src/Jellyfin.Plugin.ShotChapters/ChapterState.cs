@@ -22,6 +22,12 @@ internal sealed record ChapterRecord
     /// <summary>Gets the black stretches found, which the media segment provider reports; empty when segments are off.</summary>
     public IReadOnlyList<BlackSpan> BlackSpans { get; init; } = [];
 
+    /// <summary>Gets a value indicating whether the scan guessed the end credits (<see cref="Configuration.PluginConfiguration.GuessCredits"/>).</summary>
+    public bool CreditsGuessed { get; init; }
+
+    /// <summary>Gets the end credits guessed, or null (none found, or not guessed).</summary>
+    public CreditsSpan? Credits { get; init; }
+
     /// <summary>Gets the error, when the scan failed: retried only when the file or the settings change.</summary>
     public string? Error { get; init; }
 }
